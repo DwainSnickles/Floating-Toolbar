@@ -1,5 +1,7 @@
 # Floating Toolbar
 
+[![Build](https://github.com/DwainSnickles/Floating-Toolbar/actions/workflows/build.yml/badge.svg)](https://github.com/DwainSnickles/Floating-Toolbar/actions/workflows/build.yml)
+
 A compact, always-on-top Windows launcher bar built with C# and Windows Forms on **.NET 8**
 (`net8.0-windows`, `UseWindowsForms`). It is a single small pill of drop-down groups, pinned
 one-click launch icons and window chrome — not a full window.
