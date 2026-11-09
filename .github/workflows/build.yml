@@ -3,6 +3,9 @@ name: Build
 on:
   push:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -22,3 +25,32 @@ jobs:
           name: FloatingToolbar-release
           path: bin/Release/net8.0-windows/
           if-no-files-found: error
+
+  release:
+    # Only a version tag publishes: v1.0.0, v1.2.3, and so on.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish the self-contained single file
+        run: >-
+          dotnet publish Floating_Toolbar.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none -o dist/publish
+
+      - name: Zip the portable build
+        shell: pwsh
+        run: Compress-Archive -Path dist/publish/* -DestinationPath dist/Floating-Toolbar-win-x64.zip -Force
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Floating Toolbar ${{ github.ref_name }}
+          files: dist/Floating-Toolbar-win-x64.zip
+          fail_on_unmatched_files: true
+          generate_release_notes: true

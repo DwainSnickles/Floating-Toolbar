@@ -12,3 +12,4 @@ obj/
 .artifacts/
 .website/
 build/
+dist/
