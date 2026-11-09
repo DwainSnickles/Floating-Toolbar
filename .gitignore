@@ -1,0 +1,13 @@
+# Build output
+bin/
+obj/
+
+# Visual Studio state
+.vs/
+
+# Local per-user project settings
+*.user
+
+# Test / screenshot scratch space
+.artifacts/
+.website/
