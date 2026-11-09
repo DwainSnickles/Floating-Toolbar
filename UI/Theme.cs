@@ -109,5 +109,9 @@ internal static class Glyphs
     public const string Minimize = "\uE921";
     public const string Pin = "\uE718";
     public const string Unpin = "\uE77A";
-    public const string Add = "\uE710";
+    /// <summary>Folder with a plus: the group-add pill, so it never reads as "add a button".</summary>
+    public const string NewGroup = "\uE8F4";
+
+    /// <summary>Plain plus: the single-button-add pill.</summary>
+    public const string NewButton = "\uE710";
 }

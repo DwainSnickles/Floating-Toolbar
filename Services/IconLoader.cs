@@ -64,6 +64,26 @@ internal static class IconLoader
         return bitmap;
     }
 
+    /// <summary>Loads the icon for a standalone path, for example a group's chosen picture.</summary>
+    public static Bitmap? Get(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        if (Cache.TryGetValue(path, out var cached)) return cached;
+
+        Bitmap? bitmap = null;
+        try
+        {
+            if (File.Exists(path)) bitmap = LoadFromShell(path);
+        }
+        catch (Exception)
+        {
+            bitmap = null;
+        }
+
+        Cache[path] = bitmap;
+        return bitmap;
+    }
+
     private static Bitmap? LoadFromShell(string path)
     {
         var info = new ShFileInfo();

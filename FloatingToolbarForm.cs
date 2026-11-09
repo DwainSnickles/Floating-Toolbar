@@ -24,6 +24,13 @@ public partial class FloatingToolbarForm : Form
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
 
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr window, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr window, int id, uint modifiers, uint virtualKey);
 
@@ -55,6 +62,20 @@ public partial class FloatingToolbarForm : Form
     private Point _dragStart;
     private bool _dragActive;
     private int _dropIndex = -1;
+
+    private Action<string, string?>? _promptAccept;
+    private string? _promptIconPath;
+    private bool _promptShowIcon;
+    private System.Windows.Forms.Timer? _promptTimer;
+    private System.Windows.Forms.Timer? _menuSlideTimer;
+    private int _promptExtra;
+    private int _promptTargetExtra;
+    private int _promptLift;
+
+    private ContextMenuStrip? _slidingMenu;
+    private Point _slideTarget;
+    private int _slideStartY;
+    private int _slideStep;
 
     public FloatingToolbarForm()
     {
@@ -124,10 +145,20 @@ public partial class FloatingToolbarForm : Form
         hideButton.Activated += (_, _) => HideToolbar();
         closeButton.Activated += (_, _) => CloseToolbar();
         addGroupButton.Activated += (_, _) => CreateGroup();
+        addItemButton.Activated += (_, _) => PinApplication();
 
         addGroupButton.AllowDrop = true;
         addGroupButton.DragEnter += OnFileDragEnter;
         addGroupButton.DragDrop += OnFilesDroppedOnAddButton;
+
+        addItemButton.AllowDrop = true;
+        addItemButton.DragEnter += OnFileDragEnter;
+        addItemButton.DragDrop += OnFilesDroppedOnAddItemButton;
+
+        promptOkButton.Click += (_, _) => AcceptPrompt();
+        promptCancelButton.Click += (_, _) => CancelPrompt();
+        promptIconButton.Click += (_, _) => PickPromptIcon();
+        promptTextBox.KeyDown += PromptTextBox_KeyDown;
 
         foreach (var panel in new Control[] { groupsFlow, itemsFlow })
         {
@@ -177,6 +208,12 @@ public partial class FloatingToolbarForm : Form
     {
         _fullscreenTimer = new System.Windows.Forms.Timer(components) { Interval = 750 };
         _fullscreenTimer.Tick += FullscreenTimer_Tick;
+
+        _promptTimer = new System.Windows.Forms.Timer(components) { Interval = 15 };
+        _promptTimer.Tick += PromptTimer_Tick;
+
+        _menuSlideTimer = new System.Windows.Forms.Timer(components) { Interval = 15 };
+        _menuSlideTimer.Tick += MenuSlideTimer_Tick;
     }
 
     private void ApplySettings()
@@ -276,10 +313,15 @@ public partial class FloatingToolbarForm : Form
             _notifyIcon = null;
         }
 
-        foreach (var menu in _ownedMenus) menu.Dispose();
+        foreach (var menu in _ownedMenus) DisposeMenuLater(menu);
         _ownedMenus.Clear();
 
-        _trayMenu?.Dispose();
+        if (_trayMenu is not null)
+        {
+            DisposeMenuLater(_trayMenu);
+            _trayMenu = null;
+        }
+
         _appIcon?.Dispose();
     }
 
@@ -305,22 +347,26 @@ public partial class FloatingToolbarForm : Form
 
     private void BuildToolbar()
     {
-        foreach (var button in _groupButtons) button.Dispose();
+        // A rebuild can be triggered from a pill or a menu item that is still unwinding its own mouse
+        // message. Disposing those controls and menus in place lets WinForms' modal menu filter close
+        // a drop-down that is already gone (ObjectDisposedException: ContextMenuStrip), so the old
+        // instances are handed to the message loop and disposed once this event has finished.
+        var staleControls = new List<Control>(_groupButtons.Count + _pinnedButtons.Count);
+        staleControls.AddRange(_groupButtons);
+        staleControls.AddRange(_pinnedButtons);
         _groupButtons.Clear();
-
-        foreach (var button in _pinnedButtons) button.Dispose();
         _pinnedButtons.Clear();
+
+        var staleMenus = _ownedMenus.ToArray();
+        _ownedMenus.Clear();
 
         groupsFlow.Controls.Clear();
         itemsFlow.Controls.Clear();
 
-        foreach (var menu in _ownedMenus) menu.Dispose();
-        _ownedMenus.Clear();
-
         foreach (var group in _settings.Groups)
         {
             var captured = group;
-            var button = CreateToolbarButton(group.Name, FirstIcon(group), isGroup: true);
+            var button = CreateToolbarButton(group.Name, GroupIcon(group), isGroup: true);
             button.Activated += (_, _) =>
             {
                 if (_dragActive) return;
@@ -338,7 +384,7 @@ public partial class FloatingToolbarForm : Form
         }
 
         addGroupButton.Size = new Size(S(28), S(40));
-        addGroupButton.Glyph = Glyphs.Add;
+        addGroupButton.Glyph = Glyphs.NewGroup;
         addGroupButton.GlyphColor = Theme.Muted;
         addGroupButton.Margin = new Padding(S(2), 0, S(2), 0);
         addGroupButton.Font = Theme.Icon(10.5f);
@@ -362,6 +408,293 @@ public partial class FloatingToolbarForm : Form
             itemsFlow.Controls.Add(button);
             _pinnedButtons.Add(button);
         }
+
+        addItemButton.Size = new Size(S(28), S(40));
+        addItemButton.Glyph = Glyphs.NewButton;
+        addItemButton.GlyphColor = Theme.Accent;
+        addItemButton.Margin = new Padding(S(2), 0, S(2), 0);
+        addItemButton.Font = Theme.Icon(10.5f);
+        itemsFlow.Controls.Add(addItemButton);
+
+        DisposeStale(staleControls, staleMenus);
+    }
+
+    /// <summary>
+    /// Disposes rebuilt controls and their menus after the message that triggered the rebuild has
+    /// unwound, so no drop-down is destroyed while the framework is still closing it.
+    /// </summary>
+    private void DisposeStale(List<Control> controls, ContextMenuStrip[] menus)
+    {
+        if (controls.Count == 0 && menus.Length == 0) return;
+
+        void DisposeAll()
+        {
+            foreach (var control in controls) control.Dispose();
+
+            foreach (var menu in menus)
+            {
+                if (!menu.IsDisposed) menu.Dispose();
+            }
+        }
+
+        if (!IsHandleCreated || IsDisposed)
+        {
+            DisposeAll();
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(DisposeAll));
+        }
+        catch (InvalidOperationException)
+        {
+            DisposeAll();
+        }
+    }
+
+    /// <summary>
+    /// A drop-down disposes itself once closed, but the modal menu filter still refers to it while it
+    /// finishes the same click, so the disposal is posted to the message loop instead.
+    /// </summary>
+    private void DisposeMenuLater(ContextMenuStrip menu)
+    {
+        if (menu.IsDisposed) return;
+
+        if (!IsHandleCreated || IsDisposed)
+        {
+            menu.Dispose();
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (!menu.IsDisposed) menu.Dispose();
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            if (!menu.IsDisposed) menu.Dispose();
+        }
+    }
+
+    // ---------------------------------------------------------------- inline prompt
+
+    /// <summary>Height the ribbon grows by while the prompt is open.</summary>
+    private int PromptHeight => S(64);
+
+    /// <summary>
+    /// Opens the name prompt as part of the bar itself rather than a separate dialog, so it can never
+    /// end up behind the toolbar. The ribbon animates open downwards and closes the same way.
+    /// </summary>
+    private void ShowInlinePrompt(string title, string label, string initialValue, Action<string> accept)
+    {
+        _promptShowIcon = false;
+        _promptIconPath = null;
+        ShowPrompt(title, label, initialValue, (name, _) => accept(name));
+    }
+
+    /// <summary>Prompt for a group name plus an optional picture for the group's button.</summary>
+    private void ShowGroupPrompt(string title, string initialName, string? initialIconPath, Action<string, string?> accept)
+    {
+        _promptShowIcon = true;
+        _promptIconPath = initialIconPath;
+        ShowPrompt(title, "Group name:", initialName, accept);
+    }
+
+    private void ShowPrompt(string title, string label, string initialValue, Action<string, string?> accept)
+    {
+        _promptAccept = accept;
+        promptTitleLabel.Text = title;
+        promptLabel.Text = label;
+        promptTextBox.Text = initialValue;
+
+        promptIconButton.Visible = _promptShowIcon;
+        promptIconPreview.Visible = _promptShowIcon;
+        UpdatePromptIconPreview();
+
+        EnsurePromptFits();
+
+        promptPanel.Visible = true;
+        _promptTargetExtra = PromptHeight;
+        _promptTimer?.Start();
+        LayoutToolbar();
+
+        BeginInvoke(new Action(() =>
+        {
+            promptTextBox.Focus();
+            promptTextBox.SelectAll();
+        }));
+    }
+
+    /// <summary>Shows the chosen picture next to the picker, copying it so the icon cache is untouched.</summary>
+    private void UpdatePromptIconPreview()
+    {
+        var previous = promptIconPreview.Image;
+
+        Bitmap? preview = null;
+        if (!string.IsNullOrWhiteSpace(_promptIconPath))
+        {
+            var icon = IconLoader.Get(_promptIconPath);
+            if (icon is not null) preview = new Bitmap(icon);
+        }
+
+        promptIconPreview.Image = preview;
+        previous?.Dispose();
+    }
+
+    private void PickPromptIcon()
+    {
+        using var dialog = new OpenFileDialog
+        {
+            Title = _promptShowIcon ? "Choose a group icon" : "Choose an icon",
+            Filter = "Icons and applications (*.ico;*.exe;*.dll;*.png;*.jpg;*.bmp)|*.ico;*.exe;*.dll;*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        _promptIconPath = dialog.FileName;
+        UpdatePromptIconPreview();
+    }
+
+    private void PromptTextBox_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Enter)
+        {
+            e.SuppressKeyPress = true;
+            AcceptPrompt();
+        }
+        else if (e.KeyCode == Keys.Escape)
+        {
+            e.SuppressKeyPress = true;
+            CancelPrompt();
+        }
+    }
+
+    private void AcceptPrompt()
+    {
+        if (_promptAccept is null) return;
+
+        var value = promptTextBox.Text.Trim();
+        var iconPath = _promptIconPath;
+        var accept = _promptAccept;
+        _promptAccept = null;
+
+        HidePrompt();
+
+        if (value.Length > 0) accept(value, iconPath);
+    }
+
+    private void CancelPrompt()
+    {
+        _promptAccept = null;
+        HidePrompt();
+    }
+
+    private void HidePrompt()
+    {
+        _promptTargetExtra = 0;
+        promptTextBox.Text = string.Empty;
+
+        if (_promptExtra <= 0)
+        {
+            _promptExtra = 0;
+            promptPanel.Visible = false;
+            LayoutToolbar();
+            return;
+        }
+
+        _promptTimer?.Start();
+    }
+
+    private void PromptTimer_Tick(object? sender, EventArgs e)
+    {
+        var difference = _promptTargetExtra - _promptExtra;
+
+        if (Math.Abs(difference) <= S(3))
+        {
+            _promptExtra = _promptTargetExtra;
+            _promptTimer?.Stop();
+
+            if (_promptTargetExtra == 0)
+            {
+                promptPanel.Visible = false;
+                RestorePromptLift();
+            }
+        }
+        else
+        {
+            // Ease towards the target so the panel slides instead of snapping.
+            var step = Math.Max(S(3), (int)Math.Ceiling(Math.Abs(difference) * 0.34));
+            _promptExtra += Math.Sign(difference) * step;
+
+            if (_promptExtra < 0) _promptExtra = 0;
+            if (_promptTargetExtra == 0 && _promptExtra < 0) _promptExtra = 0;
+        }
+
+        LayoutToolbar();
+    }
+
+    /// <summary>Lifts the bar when it sits close enough to the bottom edge to clip the sliding prompt.</summary>
+    private void EnsurePromptFits()
+    {
+        var area = Screen.FromControl(this).WorkingArea;
+        var overflow = Bottom + PromptHeight - area.Bottom;
+        if (overflow <= 0) return;
+
+        var lift = Math.Min(overflow, Math.Max(0, Top - area.Top));
+        if (lift <= 0) return;
+
+        _promptLift += lift;
+        Top -= lift;
+    }
+
+    private void RestorePromptLift()
+    {
+        if (_promptLift <= 0) return;
+
+        Top += _promptLift;
+        _promptLift = 0;
+    }
+
+    private void LayoutPrompt(int width, int barHeight)
+    {
+        if (!promptPanel.Visible) return;
+
+        promptPanel.SetBounds(0, barHeight, width, Math.Max(1, _promptExtra));
+
+        var pad = S(12);
+        var contentWidth = Math.Max(S(120), width - pad * 2);
+
+        promptTitleLabel.SetBounds(pad, S(7), contentWidth, S(16));
+
+        var rowTop = S(27);
+        var labelWidth = TextRenderer.MeasureText(promptLabel.Text, promptLabel.Font).Width + S(6);
+        promptLabel.SetBounds(pad, rowTop + S(3), labelWidth, S(18));
+
+        var buttonWidth = S(66);
+        var buttonGap = S(6);
+        var cancelLeft = width - pad - buttonWidth;
+        var okLeft = cancelLeft - buttonGap - buttonWidth;
+
+        promptOkButton.SetBounds(okLeft, rowTop + S(1), buttonWidth, S(24));
+        promptCancelButton.SetBounds(cancelLeft, rowTop + S(1), buttonWidth, S(24));
+
+        // Icon preview and picker sit between the name field and the OK button.
+        var iconSize = S(24);
+        var iconButtonWidth = S(52);
+        var iconLeft = okLeft - S(10) - iconButtonWidth - S(4) - iconSize;
+        promptIconPreview.SetBounds(iconLeft, rowTop, iconSize, S(24));
+        promptIconButton.SetBounds(iconLeft + iconSize + S(4), rowTop + S(1), iconButtonWidth, S(24));
+
+        var inputLeft = promptLabel.Right + S(8);
+        var inputRight = (_promptShowIcon ? iconLeft : okLeft) - S(10);
+        var inputWidth = Math.Max(S(80), inputRight - inputLeft);
+        promptTextBox.SetBounds(inputLeft, rowTop, inputWidth, S(24));
     }
 
     private void LayoutToolbar()
@@ -374,8 +707,9 @@ public partial class FloatingToolbarForm : Form
             var pad = S(4);
             var gap = S(4);
             var buttonHeight = S(40);
-            var height = buttonHeight + S(12);
-            var top = (height - buttonHeight) / 2;
+            var barHeight = buttonHeight + S(12);
+            var height = barHeight + _promptExtra;
+            var top = (barHeight - buttonHeight) / 2;
 
             var x = pad;
 
@@ -396,8 +730,9 @@ public partial class FloatingToolbarForm : Form
 
             var itemsWidth = MeasureFlow(itemsFlow, buttonHeight);
             itemsFlow.SetBounds(x, top, Math.Max(itemsWidth, 1), buttonHeight);
-            itemsFlow.Visible = _pinnedButtons.Count > 0;
-            if (itemsFlow.Visible) x += itemsWidth + gap;
+            // The single-button "+" lives in this panel, so the panel is always shown.
+            itemsFlow.Visible = true;
+            x += itemsWidth + gap;
 
             var glyphSize = S(30);
             var glyphGap = S(2);
@@ -406,7 +741,9 @@ public partial class FloatingToolbarForm : Form
 
             ClientSize = new Size(totalWidth, height);
 
-            var glyphTop = (height - glyphSize) / 2;
+            LayoutPrompt(totalWidth, barHeight);
+
+            var glyphTop = (barHeight - glyphSize) / 2;
             var right = totalWidth - pad - glyphSize;
             closeButton.SetBounds(right, glyphTop, glyphSize, glyphSize);
             right -= glyphSize + glyphGap;
@@ -476,6 +813,18 @@ public partial class FloatingToolbarForm : Form
 
         button.UpdateSize(S(40));
         return button;
+    }
+
+    /// <summary>The group's chosen picture, else the first entry's icon, else nothing (letter tile).</summary>
+    private static Image? GroupIcon(LauncherGroup group)
+    {
+        if (!string.IsNullOrWhiteSpace(group.IconPath))
+        {
+            var custom = IconLoader.Get(group.IconPath);
+            if (custom is not null) return custom;
+        }
+
+        return FirstIcon(group);
     }
 
     private static Image? FirstIcon(LauncherGroup group)
@@ -733,10 +1082,71 @@ public partial class FloatingToolbarForm : Form
         menu.Items.Add(MenuFactory.Item("Rename group\u2026", null, (_, _) => RenameGroup(group)));
         menu.Items.Add(MenuFactory.Item("Remove group", null, (_, _) => RemoveGroup(group)));
 
-        menu.Closed += (_, _) => menu.Dispose();
+        menu.Closed += (_, _) => DisposeMenuLater(menu);
 
         MenuFactory.StyleSubMenus(menu);
         menu.Show(button, new Point(0, button.Height + S(4)));
+        SlideMenuDown(menu);
+    }
+
+    /// <summary>
+    /// The drop-down unfurls out of the pill with the same slide the prompt uses, so the ribbon feels
+    /// consistent. The menu is shown at its resting spot, nudged up, then eased down into place.
+    /// </summary>
+    private void SlideMenuDown(ContextMenuStrip menu)
+    {
+        StopMenuSlide();
+
+        var target = menu.Bounds.Location;
+        var startY = Math.Max(0, target.Y - S(14));
+        if (startY == target.Y) return;
+
+        _slidingMenu = menu;
+        _slideTarget = target;
+        _slideStartY = startY;
+        _slideStep = 0;
+
+        MoveMenuWindow(menu, target.X, startY);
+        _menuSlideTimer?.Start();
+    }
+
+    private void MenuSlideTimer_Tick(object? sender, EventArgs e)
+    {
+        var menu = _slidingMenu;
+        if (menu is null || menu.IsDisposed || !menu.Visible)
+        {
+            StopMenuSlide();
+            return;
+        }
+
+        _slideStep++;
+        var progress = Math.Min(1.0, _slideStep / 9.0);
+
+        if (progress >= 1.0)
+        {
+            MoveMenuWindow(menu, _slideTarget.X, _slideTarget.Y);
+            StopMenuSlide();
+            return;
+        }
+
+        // Ease into the resting position, matching the prompt's feel.
+        var eased = progress * progress;
+        var y = _slideStartY + (int)Math.Round((_slideTarget.Y - _slideStartY) * eased);
+        MoveMenuWindow(menu, _slideTarget.X, y);
+    }
+
+    private void StopMenuSlide()
+    {
+        _menuSlideTimer?.Stop();
+        _slidingMenu = null;
+    }
+
+    /// <summary>Moves the popup window itself; WinForms does not expose animation for drop-downs.</summary>
+    private static void MoveMenuWindow(ContextMenuStrip menu, int x, int y)
+    {
+        if (menu.IsDisposed || !menu.IsHandleCreated) return;
+
+        SetWindowPos(menu.Handle, IntPtr.Zero, x, y, 0, 0, SwpNoSize | SwpNoZOrder | SwpNoActivate);
     }
 
     // A second drop-down opened from inside an entry (right-click actions) made the framework
@@ -950,24 +1360,25 @@ public partial class FloatingToolbarForm : Form
 
     private void CreateGroup()
     {
-        var name = TextPromptForm.Show(this, "New group", "Group name:", "New group");
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        _settings.Groups.Add(new LauncherGroup { Name = name.Trim() });
-        SaveSettings();
-        BuildToolbar();
-        LayoutToolbar();
+        ShowGroupPrompt("New group", "New group", null, (name, iconPath) =>
+        {
+            _settings.Groups.Add(new LauncherGroup { Name = name, IconPath = iconPath });
+            SaveSettings();
+            BuildToolbar();
+            LayoutToolbar();
+        });
     }
 
     private void RenameGroup(LauncherGroup group)
     {
-        var name = TextPromptForm.Show(this, "Rename group", "Group name:", group.Name);
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        group.Name = name.Trim();
-        SaveSettings();
-        BuildToolbar();
-        LayoutToolbar();
+        ShowGroupPrompt("Rename group", group.Name, group.IconPath, (name, iconPath) =>
+        {
+            group.Name = name;
+            group.IconPath = iconPath;
+            SaveSettings();
+            BuildToolbar();
+            LayoutToolbar();
+        });
     }
 
     private void RemoveGroup(LauncherGroup group)
@@ -1113,15 +1524,22 @@ public partial class FloatingToolbarForm : Form
         LayoutToolbar();
     }
 
+    /// <summary>Files dropped on the single-button "+" are pinned as one-click buttons.</summary>
+    private void OnFilesDroppedOnAddItemButton(object? sender, DragEventArgs e)
+    {
+        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] files) return;
+        AddPinnedFiles(files);
+    }
+
     private void RenameItem(LauncherItem item)
     {
-        var name = TextPromptForm.Show(this, "Rename button", "Button name:", item.Name);
-        if (string.IsNullOrWhiteSpace(name)) return;
-
-        item.Name = name.Trim();
-        SaveSettings();
-        BuildToolbar();
-        LayoutToolbar();
+        ShowInlinePrompt("Rename button", "Button name:", item.Name, name =>
+        {
+            item.Name = name;
+            SaveSettings();
+            BuildToolbar();
+            LayoutToolbar();
+        });
     }
 
     private void RemoveItemFromGroup(LauncherGroup group, LauncherItem item)

@@ -61,8 +61,18 @@ Requires the .NET 8 Desktop Runtime (or SDK) and Windows 10/11.
 - Inside a group drop-down, hold the left mouse button on an entry and drag up/down; the hovered row
   turns bold and the order is saved on release. The **Edit group…** dialog offers the same drag
   reorder in a list, plus Move up / Move down buttons as a guaranteed fallback.
-- Drag files from Explorer onto a group pill to append them to that group, onto the `+` pill to create
-  a new group from them, or onto the bar background to pin them as one-click icons.
+- Two add pills sit on the bar and are deliberately different: the one after the groups shows a
+  folder-with-plus in grey (creates a new group), the one after the pinned icons shows a blue `+`
+  (adds a single one-click button, the same action as **Pin an application…** in the bar menu).
+- Drag files from Explorer onto a group pill to append them to that group, onto the first `+` pill to
+  create a new group from them, onto the second `+` pill to pin them as one-click buttons, or onto the
+  bar background to pin them.
+- New group and rename use an inline prompt that slides out of the bottom of the bar itself, so it is
+  always in front with the toolbar instead of a dialog that can drop behind it. Enter confirms, Escape
+  cancels, and the bar returns to its normal height afterwards.
+- The prompt has an **Icon…** picker: choose an `.ico`, image, `.exe` or `.dll` to give the group its own
+  button picture. Without one the group shows its first entry's icon, or a letter tile when it is empty.
+- Group drop-down menus unfurl from their pill with the same eased slide, so the whole ribbon moves as one.
 - Right-click a group for add / edit / rename / move left / move right / remove. Rename or remove an
   entry with **Edit group…** (or drag it to a new position). Right-click a pinned icon for open /
   rename / reveal / remove.
