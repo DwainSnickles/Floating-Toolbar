@@ -102,6 +102,7 @@ public partial class FloatingToolbarForm : Form
     {
         Load += FloatingToolbarForm_Load;
         FormClosing += FloatingToolbarForm_FormClosing;
+        Activated += (_, _) => ResetCursor();
 
         AllowDrop = true;
         DragEnter += OnFileDragEnter;
@@ -151,6 +152,18 @@ public partial class FloatingToolbarForm : Form
         LayoutToolbar();
         RestorePosition();
         UpdateHotkey();
+        ResetCursor();
+    }
+
+    /// <summary>
+    /// WinForms keeps the app-starting (busy) cursor until something replaces it. Clear it once the
+    /// bar is up, and again whenever the bar is activated, so the pointer never stays busy.
+    /// </summary>
+    private void ResetCursor()
+    {
+        UseWaitCursor = false;
+        Application.UseWaitCursor = false;
+        Cursor.Current = Cursors.Default;
     }
 
     /// <summary>Keeps tooltips dark instead of the default white system hint.</summary>
