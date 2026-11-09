@@ -127,7 +127,11 @@ are generated from `settings.json` at runtime because their count and order are 
 ## Repository and website
 
 - Published at **https://github.com/DwainSnickles/Floating-Toolbar** (public, branch `main`).
-- Listed on **https://dwainsnickles.github.io/projects.html** under *UI components*. The curated title,
+- **Download v1.0.0:**
+  [Floating-Toolbar-win-x64.zip](https://github.com/DwainSnickles/Floating-Toolbar/releases/latest/download/Floating-Toolbar-win-x64.zip)
+  — self-contained Windows x64 build, no .NET install required.
+- Listed on **https://dwainsnickles.github.io/projects.html** under *UI components*, with a download
+  card on **https://dwainsnickles.github.io/downloads.html**. The curated title,
   description and category live in that site's `scripts/fetch-repos.mjs`, and `data/repos.json` was
   regenerated so the card appears without waiting for the daily refresh.
 - Clone it with `git clone https://github.com/DwainSnickles/Floating-Toolbar.git`.

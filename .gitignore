@@ -11,3 +11,4 @@ obj/
 # Test / screenshot scratch space
 .artifacts/
 .website/
+build/
