@@ -6,7 +6,7 @@ namespace FloatingToolbar;
 /// <summary>
 /// Options dialog. The toolbar writes these values back to settings.json when OK is pressed.
 /// </summary>
-public partial class OptionsForm : Form
+public partial class OptionsForm : DropDownForm
 {
     private readonly ToolbarSettings _settings;
 
@@ -68,6 +68,9 @@ public partial class OptionsForm : Form
 
     public bool ResetPositionRequested { get; private set; }
 
+    /// <summary>True once OK has written the settings, so the bar knows to re-apply them.</summary>
+    public bool Saved { get; private set; }
+
     private void Confirm()
     {
         _settings.StartWithWindows = startWithWindowsCheckBox.Checked;
@@ -78,7 +81,7 @@ public partial class OptionsForm : Form
         _settings.ShowHideHotkey = hotkeyCheckBox.Checked;
         _settings.AutoHideFullscreen = autoHideFullscreenCheckBox.Checked;
 
-        DialogResult = DialogResult.OK;
+        Saved = true;
         Close();
     }
 }

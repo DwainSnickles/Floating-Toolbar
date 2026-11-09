@@ -49,6 +49,9 @@ Requires the .NET 8 Desktop Runtime (or SDK) and Windows 10/11.
   afterwards. Maximized windows stop at the taskbar and do not count. If you bring the bar back yourself
   during fullscreen, it stays until that app closes.
 - Per-monitor v2 DPI awareness; all dynamic sizing goes through `LogicalToDeviceUnits`.
+- Options, the group editor and the rename prompts open as dark drop-down panels under the bar
+  instead of separate windows, carrying the same blue accent edge. The bar stays usable while they
+  are open, and the panel closes as soon as you click elsewhere.
 
 **Groups and buttons**
 - Ships with **Office** (Word, Excel, PowerPoint, Outlook, OneNote), **Browsers** (Edge, Chrome,
@@ -61,12 +64,12 @@ Requires the .NET 8 Desktop Runtime (or SDK) and Windows 10/11.
 - Inside a group drop-down, hold the left mouse button on an entry and drag up/down; the hovered row
   turns bold and the order is saved on release. The **Edit group…** dialog offers the same drag
   reorder in a list, plus Move up / Move down buttons as a guaranteed fallback.
-- Two add pills sit on the bar and are deliberately different: the one after the groups shows a
-  folder-with-plus in grey (creates a new group), the one after the pinned icons shows a blue `+`
-  (adds a single one-click button, the same action as **Pin an application…** in the bar menu).
-- Drag files from Explorer onto a group pill to append them to that group, onto the first `+` pill to
-  create a new group from them, onto the second `+` pill to pin them as one-click buttons, or onto the
-  bar background to pin them.
+- One blue `+` pill sits after the groups and offers both additions: **Single button** pins a one-click
+  icon (the same action as **Pin an application…** in the bar menu) and **New group** opens the group
+  prompt. The bar is outlined in the accent blue and the TOOLBAR text hints that a right click opens
+  the bar options.
+- Drag files from Explorer onto a group pill to append them to that group, onto the `+` pill to pin them
+  as one-click buttons, or onto the bar background to pin them.
 - New group and rename use an inline prompt that slides out of the bottom of the bar itself, so it is
   always in front with the toolbar instead of a dialog that can drop behind it. Enter confirms, Escape
   cancels, and the bar returns to its normal height afterwards.

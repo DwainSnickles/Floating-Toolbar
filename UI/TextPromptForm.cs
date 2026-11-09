@@ -1,18 +1,18 @@
 namespace FloatingToolbar.UI;
 
-/// <summary>Minimal dark text prompt used for group and button names.</summary>
-internal sealed class TextPromptForm : Form
+/// <summary>Minimal dark text prompt, dropped under whatever asked for the name.</summary>
+internal sealed class TextPromptForm : DropDownForm
 {
     private readonly TextBox _input;
+    private readonly Action<string> _accept;
 
-    private TextPromptForm(string title, string label, string initialValue)
+    private TextPromptForm(string title, string label, string initialValue, Action<string> accept)
     {
+        _accept = accept;
+
         Text = title;
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        StartPosition = FormStartPosition.CenterParent;
         MaximizeBox = false;
         MinimizeBox = false;
-        ShowInTaskbar = false;
         BackColor = Theme.Background;
         ForeColor = Theme.Text;
         Font = Theme.Ui(9f);
@@ -40,11 +40,7 @@ internal sealed class TextPromptForm : Form
         okButton.Click += (_, _) => Confirm();
 
         var cancelButton = CreateButton("Cancel", 254);
-        cancelButton.Click += (_, _) =>
-        {
-            DialogResult = DialogResult.Cancel;
-            Close();
-        };
+        cancelButton.Click += (_, _) => Close();
 
         Controls.AddRange(new Control[] { promptLabel, _input, okButton, cancelButton });
         AcceptButton = okButton;
@@ -58,17 +54,17 @@ internal sealed class TextPromptForm : Form
 
     public string Value => _input.Text.Trim();
 
-    public static string? Show(IWin32Window owner, string title, string label, string initialValue = "")
+    /// <summary>Drops the prompt under <paramref name="owner"/> and hands the typed value back.</summary>
+    public static void Show(Form owner, string title, string label, string initialValue, Action<string> accept)
     {
-        using var prompt = new TextPromptForm(title, label, initialValue);
-        return prompt.ShowDialog(owner) == DialogResult.OK ? prompt.Value : null;
+        new TextPromptForm(title, label, initialValue, accept).ShowUnder(owner);
     }
 
     private void Confirm()
     {
         if (Value.Length == 0) return;
 
-        DialogResult = DialogResult.OK;
+        _accept(Value);
         Close();
     }
 

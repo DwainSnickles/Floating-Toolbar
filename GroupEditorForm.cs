@@ -8,7 +8,7 @@ namespace FloatingToolbar;
 /// Edits one group: add, remove, rename, retarget and reorder by dragging (or with the buttons).
 /// Changes are applied to the live group when the dialog is closed.
 /// </summary>
-public partial class GroupEditorForm : Form
+public partial class GroupEditorForm : DropDownForm
 {
     private readonly LauncherGroup _group;
     private readonly List<LauncherItem> _items;
@@ -171,6 +171,7 @@ public partial class GroupEditorForm : Form
 
     private void AddEntry()
     {
+        using var hold = HoldOpen();
         using var dialog = new OpenFileDialog
         {
             Title = "Add an entry",
@@ -209,28 +210,32 @@ public partial class GroupEditorForm : Form
     {
         if (Selected is not { } item) return;
 
-        var name = TextPromptForm.Show(this, "Rename entry", "Entry name:", item.Name);
-        if (string.IsNullOrWhiteSpace(name)) return;
+        TextPromptForm.Show(this, "Rename entry", "Entry name:", item.Name, name =>
+        {
+            if (string.IsNullOrWhiteSpace(name)) return;
 
-        item.Name = name.Trim();
-        RefreshList();
+            item.Name = name.Trim();
+            RefreshList();
+        });
     }
 
     private void ChangeTarget()
     {
         if (Selected is not { } item) return;
 
-        var target = TextPromptForm.Show(
+        TextPromptForm.Show(
             this,
             "Change target",
             "Executable, shortcut, URL or shell target:",
-            item.Target);
+            item.Target,
+            target =>
+            {
+                if (string.IsNullOrWhiteSpace(target)) return;
 
-        if (string.IsNullOrWhiteSpace(target)) return;
-
-        item.Target = target.Trim();
-        item.IconPath = File.Exists(item.Target) ? item.Target : null;
-        RefreshList();
+                item.Target = target.Trim();
+                item.IconPath = File.Exists(item.Target) ? item.Target : null;
+                RefreshList();
+            });
     }
 
     private void MoveEntry(int offset)
@@ -253,7 +258,6 @@ public partial class GroupEditorForm : Form
     {
         _group.Items.Clear();
         _group.Items.AddRange(_items);
-        DialogResult = DialogResult.OK;
         Close();
     }
 }

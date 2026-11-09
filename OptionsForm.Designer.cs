@@ -146,11 +146,8 @@ partial class OptionsForm
         Controls.Add(subtitleLabel);
         Controls.Add(titleLabel);
         Font = Theme.Ui(9f);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterParent;
         Text = "Floating Toolbar options";
 
         ResumeLayout(false);

@@ -10,7 +10,6 @@ partial class FloatingToolbarForm
     private Label titleLabel = null!;
     private FlowLayoutPanel groupsFlow = null!;
     private FlowLayoutPanel itemsFlow = null!;
-    private GlyphButton addGroupButton = null!;
     private GlyphButton addItemButton = null!;
     private GlyphButton pinButton = null!;
     private GlyphButton hideButton = null!;
@@ -42,7 +41,6 @@ partial class FloatingToolbarForm
         titleLabel = new Label();
         groupsFlow = new FlowLayoutPanel();
         itemsFlow = new FlowLayoutPanel();
-        addGroupButton = new GlyphButton();
         addItemButton = new GlyphButton();
         pinButton = new GlyphButton();
         hideButton = new GlyphButton();
@@ -79,6 +77,7 @@ partial class FloatingToolbarForm
         titleLabel.Size = new Size(58, 40);
         titleLabel.Text = "TOOLBAR";
         titleLabel.TextAlign = ContentAlignment.MiddleCenter;
+        toolTip.SetToolTip(titleLabel, "Right click for options");
 
         // groupsFlow
         groupsFlow.AutoSize = false;
@@ -101,19 +100,12 @@ partial class FloatingToolbarForm
         itemsFlow.WrapContents = false;
         itemsFlow.Visible = false;
 
-        // addGroupButton
-        addGroupButton.ActiveGlyphColor = Theme.Accent;
-        addGroupButton.Glyph = Glyphs.NewGroup;
-        addGroupButton.GlyphColor = Theme.Muted;
-        addGroupButton.Size = new Size(28, 40);
-        toolTip.SetToolTip(addGroupButton, "New group");
-
         // addItemButton
         addItemButton.ActiveGlyphColor = Theme.Accent;
         addItemButton.Glyph = Glyphs.NewButton;
         addItemButton.GlyphColor = Theme.Accent;
         addItemButton.Size = new Size(28, 40);
-        toolTip.SetToolTip(addItemButton, "New button");
+        toolTip.SetToolTip(addItemButton, "Single button or new group");
 
         // pinButton
         pinButton.ActiveGlyphColor = Theme.Accent;
@@ -212,7 +204,6 @@ partial class FloatingToolbarForm
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = Theme.Background;
         ClientSize = new Size(560, 52);
-        Controls.Add(addGroupButton);
         Controls.Add(addItemButton);
         Controls.Add(closeButton);
         Controls.Add(hideButton);

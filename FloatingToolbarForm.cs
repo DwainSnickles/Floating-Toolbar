@@ -144,12 +144,7 @@ public partial class FloatingToolbarForm : Form
         pinButton.Activated += (_, _) => SetAlwaysOnTop(!_settings.AlwaysOnTop);
         hideButton.Activated += (_, _) => HideToolbar();
         closeButton.Activated += (_, _) => CloseToolbar();
-        addGroupButton.Activated += (_, _) => CreateGroup();
-        addItemButton.Activated += (_, _) => PinApplication();
-
-        addGroupButton.AllowDrop = true;
-        addGroupButton.DragEnter += OnFileDragEnter;
-        addGroupButton.DragDrop += OnFilesDroppedOnAddButton;
+        addItemButton.Activated += (_, _) => ShowAddMenu();
 
         addItemButton.AllowDrop = true;
         addItemButton.DragEnter += OnFileDragEnter;
@@ -336,11 +331,16 @@ public partial class FloatingToolbarForm : Form
     {
         base.OnPaint(e);
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        // Accent edge: the same blue outline our other tools use (PC Medic), so the bar reads as one
+        // of our surfaces instead of a plain dark panel.
+        var edge = 2.5f;
+        var inset = (int)Math.Ceiling(edge / 2f);
         Theme.DrawRoundedBorder(
             e.Graphics,
-            new Rectangle(0, 0, Width - 1, Height - 1),
+            new Rectangle(inset, inset, Width - inset * 2, Height - inset * 2),
             S(10),
-            Theme.Border);
+            Theme.AccentEdge,
+            edge);
     }
 
     // ---------------------------------------------------------------- layout
@@ -382,13 +382,6 @@ public partial class FloatingToolbarForm : Form
             groupsFlow.Controls.Add(button);
             _groupButtons.Add(button);
         }
-
-        addGroupButton.Size = new Size(S(28), S(40));
-        addGroupButton.Glyph = Glyphs.NewGroup;
-        addGroupButton.GlyphColor = Theme.Muted;
-        addGroupButton.Margin = new Padding(S(2), 0, S(2), 0);
-        addGroupButton.Font = Theme.Icon(10.5f);
-        groupsFlow.Controls.Add(addGroupButton);
 
         foreach (var pinned in _settings.PinnedItems)
         {
@@ -728,10 +721,11 @@ public partial class FloatingToolbarForm : Form
             groupsFlow.SetBounds(x, top, groupsWidth, buttonHeight);
             x += groupsWidth + gap;
 
+            // The single-button "+" lives in this panel, so the panel is always shown. It has to
+            // be visible before measuring: MeasureFlow skips the children of a hidden parent.
+            itemsFlow.Visible = true;
             var itemsWidth = MeasureFlow(itemsFlow, buttonHeight);
             itemsFlow.SetBounds(x, top, Math.Max(itemsWidth, 1), buttonHeight);
-            // The single-button "+" lives in this panel, so the panel is always shown.
-            itemsFlow.Visible = true;
             x += itemsWidth + gap;
 
             var glyphSize = S(30);
@@ -1046,7 +1040,25 @@ public partial class FloatingToolbarForm : Form
 
     // ---------------------------------------------------------------- group menus
 
+    /// <summary>
+    /// The "+" pill offers both kinds of addition, so the bar needs only one add control. The menu
+    /// slides out of the pill exactly like a group drop-down does.
+    /// </summary>
+    private void ShowAddMenu()
+    {
+        var menu = MenuFactory.CreateMenu();
+        menu.Items.Add(MenuFactory.Item("Single button", null, (_, _) => PinApplication()));
+        menu.Items.Add(MenuFactory.Item("New group", null, (_, _) => CreateGroup()));
+
+        menu.Closed += (_, _) => DisposeMenuLater(menu);
+
+        MenuFactory.StyleSubMenus(menu);
+        menu.Show(addItemButton, new Point(0, addItemButton.Height + S(4)));
+        SlideMenuDown(menu);
+    }
+
     private void ShowGroupMenu(ToolbarItemButton button, LauncherGroup group)
+
     {
         var menu = MenuFactory.CreateMenu();
         var entries = new List<ToolStripMenuItem>();
@@ -1500,30 +1512,6 @@ public partial class FloatingToolbarForm : Form
         LayoutToolbar();
     }
 
-    private void OnFilesDroppedOnAddButton(object? sender, DragEventArgs e)
-    {
-        if (e.Data?.GetData(DataFormats.FileDrop) is not string[] files) return;
-
-        var valid = files.Where(File.Exists).ToArray();
-        if (valid.Length == 0) return;
-
-        var group = new LauncherGroup { Name = Path.GetFileNameWithoutExtension(valid[0]) };
-        foreach (var file in valid)
-        {
-            group.Items.Add(new LauncherItem
-            {
-                Name = Path.GetFileNameWithoutExtension(file),
-                Target = file,
-                IconPath = file
-            });
-        }
-
-        _settings.Groups.Add(group);
-        SaveSettings();
-        BuildToolbar();
-        LayoutToolbar();
-    }
-
     /// <summary>Files dropped on the single-button "+" are pinned as one-click buttons.</summary>
     private void OnFilesDroppedOnAddItemButton(object? sender, DragEventArgs e)
     {
@@ -1558,21 +1546,34 @@ public partial class FloatingToolbarForm : Form
         LayoutToolbar();
     }
 
+    /// <summary>The editor drops under the bar and applies its changes when it closes.</summary>
     private void EditGroup(LauncherGroup group)
     {
-        using var editor = new GroupEditorForm(group);
-        editor.ShowDialog(this);
+        var editor = new GroupEditorForm(group);
+        editor.FormClosed += (_, _) =>
+        {
+            SaveSettings();
+            BuildToolbar();
+            LayoutToolbar();
+        };
 
-        SaveSettings();
-        BuildToolbar();
-        LayoutToolbar();
+        editor.ShowUnder(this);
     }
 
     private void ShowOptions()
     {
-        using var options = new OptionsForm(_settings);
-        if (options.ShowDialog(this) != DialogResult.OK) return;
+        var options = new OptionsForm(_settings);
+        options.FormClosed += (_, _) =>
+        {
+            if (options.Saved) ApplyOptionChanges(options.ResetPositionRequested);
+        };
 
+        options.ShowUnder(this);
+    }
+
+    /// <summary>Writes the accepted options back into the running toolbar.</summary>
+    private void ApplyOptionChanges(bool resetPosition)
+    {
         StartupManager.Apply(_settings.StartWithWindows);
         _settings.StartWithWindows = StartupManager.IsEnabled();
         SaveSettings();
@@ -1597,7 +1598,7 @@ public partial class FloatingToolbarForm : Form
             ShowToolbar(activate: false);
         }
 
-        if (options.ResetPositionRequested)
+        if (resetPosition)
         {
             MoveToDefaultPosition();
             SaveSettings();

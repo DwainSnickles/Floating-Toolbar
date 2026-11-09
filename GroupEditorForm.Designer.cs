@@ -128,11 +128,8 @@ partial class GroupEditorForm
         Controls.Add(hintLabel);
         Controls.Add(nameLabel);
         Font = Theme.Ui(9f);
-        FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ShowInTaskbar = false;
-        StartPosition = FormStartPosition.CenterParent;
         Text = "Edit group";
 
         ResumeLayout(false);
