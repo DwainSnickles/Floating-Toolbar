@@ -15,3 +15,10 @@ jobs:
 
       - name: Build in Release
         run: dotnet build Floating_Toolbar.csproj -c Release --nologo
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: FloatingToolbar-release
+          path: bin/Release/net8.0-windows/
+          if-no-files-found: error
