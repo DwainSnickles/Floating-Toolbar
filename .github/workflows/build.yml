@@ -43,14 +43,20 @@ jobs:
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:DebugType=none -o dist/publish
 
-      - name: Zip the portable build
+      - name: Zip the portable build and write its checksum
         shell: pwsh
-        run: Compress-Archive -Path dist/publish/* -DestinationPath dist/Floating-Toolbar-win-x64.zip -Force
+        run: |
+          Compress-Archive -Path dist/publish/* -DestinationPath dist/Floating-Toolbar-win-x64.zip -Force
+          $hash = (Get-FileHash dist/Floating-Toolbar-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Path dist/Floating-Toolbar-win-x64.zip.sha256 -Value "$hash  Floating-Toolbar-win-x64.zip" -Encoding ascii
+          Write-Output "SHA-256 $hash"
 
       - name: Publish the release
         uses: softprops/action-gh-release@v2
         with:
           name: Floating Toolbar ${{ github.ref_name }}
-          files: dist/Floating-Toolbar-win-x64.zip
+          files: |
+            dist/Floating-Toolbar-win-x64.zip
+            dist/Floating-Toolbar-win-x64.zip.sha256
           fail_on_unmatched_files: true
           generate_release_notes: true
