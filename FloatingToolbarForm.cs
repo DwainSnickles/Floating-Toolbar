@@ -102,7 +102,7 @@ public partial class FloatingToolbarForm : Form
     {
         Load += FloatingToolbarForm_Load;
         FormClosing += FloatingToolbarForm_FormClosing;
-        Activated += (_, _) => ResetCursor();
+        Activated += (_, _) => ClearBusyCursor();
 
         AllowDrop = true;
         DragEnter += OnFileDragEnter;
@@ -152,14 +152,14 @@ public partial class FloatingToolbarForm : Form
         LayoutToolbar();
         RestorePosition();
         UpdateHotkey();
-        ResetCursor();
+        ClearBusyCursor();
     }
 
     /// <summary>
     /// WinForms keeps the app-starting (busy) cursor until something replaces it. Clear it once the
     /// bar is up, and again whenever the bar is activated, so the pointer never stays busy.
     /// </summary>
-    private void ResetCursor()
+    private void ClearBusyCursor()
     {
         UseWaitCursor = false;
         Application.UseWaitCursor = false;
