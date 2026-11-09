@@ -124,16 +124,13 @@ are generated from `settings.json` at runtime because their count and order are 
 
 ---
 
-## Not done in this run (needs your action)
+## Repository and website
 
-- **GitHub repository.** This folder is not a git repository and no GitHub credentials are available to
-  the agent, so nothing was pushed or published. To do it yourself:
-  ```bash
-  git init && git add . && git commit -m "Floating Toolbar: .NET 8 WinForms launcher"
-  gh repo create floating-toolbar --public --source . --remote origin --push
-  ```
-- **Website update** on `dwainsnickles.github.io` was not touched — that repository is outside this
-  workspace. Add a short project card there linking the new repo once it exists.
+- Published at **https://github.com/DwainSnickles/Floating-Toolbar** (public, branch `main`).
+- Listed on **https://dwainsnickles.github.io/projects.html** under *UI components*. The curated title,
+  description and category live in that site's `scripts/fetch-repos.mjs`, and `data/repos.json` was
+  regenerated so the card appears without waiting for the daily refresh.
+- Clone it with `git clone https://github.com/DwainSnickles/Floating-Toolbar.git`.
 
 ---
 
