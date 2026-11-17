@@ -13,7 +13,7 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Product>Floating Toolbar</Product>
     <AssemblyTitle>Floating Toolbar</AssemblyTitle>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>
