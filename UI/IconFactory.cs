@@ -1,43 +1,74 @@
-using System.Drawing.Drawing2D;
-using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace FloatingToolbar.UI;
 
-/// <summary>Draws the tray/window icon at runtime so the app needs no embedded .ico.</summary>
+/// <summary>
+/// Supplies the app icon from the embedded Assets/app.ico, which is the same artwork the
+/// .exe (and therefore any desktop shortcut) shows, so window, taskbar and tray all match.
+/// </summary>
 internal static class IconFactory
 {
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool DestroyIcon(IntPtr handle);
+    private const string ResourceName = "FloatingToolbar.app.ico";
 
-    public static Icon Create()
+    /// <summary>Full multi-frame icon; Window picks whatever size a surface asks for.</summary>
+    public static Icon Create() => FromResource(default);
+
+    /// <summary>Icon pinned to one size, for surfaces that cannot pick a frame themselves (the tray).</summary>
+    public static Icon Create(Size size) => FromResource(size);
+
+    private static Icon FromResource(Size size)
     {
-        using var bitmap = new Bitmap(32, 32);
-        using (var graphics = Graphics.FromImage(bitmap))
+        using var stream = OpenIconStream();
+        if (stream is not null)
         {
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            var bounds = new Rectangle(1, 1, 30, 30);
-
-            using (var path = Theme.Rounded(bounds, 8))
-            using (var background = new LinearGradientBrush(bounds, Color.FromArgb(44, 48, 58), Color.FromArgb(20, 21, 25), 90f))
+            try
             {
-                graphics.FillPath(background, path);
+                return size.Width > 0 && size.Height > 0
+                    ? new Icon(stream, size)
+                    : new Icon(stream);
             }
-
-            using var pen = new Pen(Theme.Accent, 2f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
-            graphics.DrawLine(pen, 9, 12, 23, 12);
-            graphics.DrawLine(pen, 9, 16, 23, 16);
-            graphics.DrawLine(pen, 9, 20, 17, 20);
+            catch (ArgumentException)
+            {
+                // Malformed resource: fall back to the shell icon below.
+            }
         }
 
-        var handle = bitmap.GetHicon();
-        try
+        return Fallback(size);
+    }
+
+    private static Stream? OpenIconStream()
+    {
+        var assembly = typeof(IconFactory).Assembly;
+        var stream = assembly.GetManifestResourceStream(ResourceName);
+        if (stream is not null) return stream;
+
+        // Tolerate a renamed resource rather than silently losing the artwork.
+        var alias = Array.Find(
+            assembly.GetManifestResourceNames(),
+            name => name.EndsWith(".ico", StringComparison.OrdinalIgnoreCase));
+
+        return alias is null ? null : assembly.GetManifestResourceStream(alias);
+    }
+
+    private static Icon Fallback(Size size)
+    {
+        var path = Environment.ProcessPath;
+        if (!string.IsNullOrEmpty(path))
         {
-            using var icon = Icon.FromHandle(handle);
-            return (Icon)icon.Clone();
+            try
+            {
+                var fromExe = Icon.ExtractAssociatedIcon(path);
+                if (fromExe is not null)
+                {
+                    return size.Width > 0 && size.Height > 0 ? new Icon(fromExe, size) : fromExe;
+                }
+            }
+            catch (ArgumentException)
+            {
+                // No icon resource on the executable.
+            }
         }
-        finally
-        {
-            DestroyIcon(handle);
-        }
+
+        return (Icon)SystemIcons.Application.Clone();
     }
 }

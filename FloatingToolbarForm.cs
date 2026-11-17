@@ -46,6 +46,7 @@ public partial class FloatingToolbarForm : Form
     private ContextMenuStrip? _trayMenu;
     private ContextMenuStrip? _toolbarMenu;
     private Icon? _appIcon;
+    private Icon? _trayIcon;
     private bool _layoutRunning;
     private bool _windowDragging;
     private Point _windowDragCursor;
@@ -105,13 +106,14 @@ public partial class FloatingToolbarForm : Form
     {
         _appIcon = IconFactory.Create();
         Icon = _appIcon;
+        _trayIcon = IconFactory.Create(SystemInformation.SmallIconSize);
 
         _trayMenu = MenuFactory.CreateMenu();
         _trayMenu.Opening += TrayMenu_Opening;
 
         _notifyIcon = new NotifyIcon(components)
         {
-            Icon = _appIcon,
+            Icon = _trayIcon,
             Text = "Floating Toolbar",
             ContextMenuStrip = _trayMenu,
             Visible = true
@@ -317,7 +319,11 @@ public partial class FloatingToolbarForm : Form
             _trayMenu = null;
         }
 
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+
         _appIcon?.Dispose();
+        _appIcon = null;
     }
 
     protected override void OnDpiChanged(DpiChangedEventArgs e)
