@@ -185,3 +185,9 @@ are generated from `settings.json` at runtime because their count and order are 
 - Fullscreen auto-hide is wired to the 750 ms foreground poll and covered by the settings toggle, but
   was not exercised against a real fullscreen application.
 - The PC was put to sleep by the previous run; this pass ran after it was woken.
+
+## Support this project
+
+If this project saved you some time, you can leave a tip at
+[ko-fi.com/dwainhsnickles](https://ko-fi.com/dwainhsnickles) (cards, no account needed) or
+[paypal.me/YTDPlatinum](https://paypal.me/YTDPlatinum). Bug reports and pull requests are welcome too.
