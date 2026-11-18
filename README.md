@@ -188,6 +188,11 @@ are generated from `settings.json` at runtime because their count and order are 
 
 ## Support this project
 
-If this project saved you some time, you can leave a tip at
-[ko-fi.com/dwainhsnickles](https://ko-fi.com/dwainhsnickles) (cards, no account needed) or
-[paypal.me/YTDPlatinum](https://paypal.me/YTDPlatinum). Bug reports and pull requests are welcome too.
+This project is free, and stays free. If it saved you some time, or you built something commercial
+on top of it, a one-off tip is a decent way to say thanks.
+
+[**Tip via Ko-fi**](https://ko-fi.com/dwainhsnickles) (cards, no account needed) or
+[**Tip via PayPal.Me**](https://paypal.me/YTDPlatinum)
+
+Tipping does not buy priority, a support contract or a feature promise - issues and pull requests
+are just as welcome and every bit as useful.
